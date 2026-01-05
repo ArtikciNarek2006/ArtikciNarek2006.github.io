@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Gallery</title>
+    <style>
+        {{CSS_CONTENT}}
+    </style>
+</head>
+<body data-theme="dark">
+    <!-- Clock Preview Overlay -->
+    <div id="clockOverlay" class="clock-overlay">
+        <div class="clock-container">
+            <div class="clock">
+                <div class="hand hour-hand"></div>
+                <div class="hand minute-hand"></div>
+                <div class="hand second-hand"></div>
+                <div class="center-dot"></div>
+            </div>
+            <div class="digital-time" id="digitalTime"></div>
+            <div class="date-display" id="dateDisplay"></div>
+        </div>
+        <button class="close-clock" onclick="closeClock()">Enter Gallery →</button>
+    </div>
+
+    <!-- Main Gallery -->
+    <div class="gallery-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">🎨 Project Gallery</h1>
+                <div class="header-controls">
+                    <button class="btn" onclick="showClock()" title="Show Clock">🕐</button>
+                    <button class="btn" onclick="toggleGithubStats()" title="GitHub Stats">📊</button>
+                    <button class="btn" onclick="toggleStorageManager()" title="Storage Manager">💾</button>
+                    <button class="btn" onclick="toggleTheme()" title="Toggle Theme" id="themeBtn">🌓</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search projects..." oninput="filterProjects()">
+            </div>
+            <div class="view-controls">
+                <button class="view-btn active" data-view="grid" onclick="setView('grid')" title="Grid View">⊞</button>
+                <button class="view-btn" data-view="list" onclick="setView('list')" title="List View">☰</button>
+                <button class="view-btn" data-view="compact" onclick="setView('compact')" title="Compact View">≡</button>
+            </div>
+            <div class="filter-controls">
+                <select id="tagFilter" onchange="filterProjects()">
+                    <option value="">All Tags</option>
+                </select>
+                <select id="sortBy" onchange="sortProjects()">
+                    <option value="date-desc">Newest First</option>
+                    <option value="date-asc">Oldest First</option>
+                    <option value="name-asc">Name A-Z</option>
+                    <option value="name-desc">Name Z-A</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- GitHub Stats Panel -->
+        <div id="githubStats" class="panel" style="display: none;">
+            <h3>📊 GitHub Statistics</h3>
+            <div id="githubStatsContent">Loading...</div>
+        </div>
+
+        <!-- Storage Manager Modal -->
+        <div id="storageManagerModal" class="modal" onclick="closeStorageManager()">
+            <div class="modal-content storage-modal" onclick="event.stopPropagation()">
+                <button class="close-btn" onclick="closeStorageManager()">✕</button>
+                <h3>💾 Storage Manager</h3>
+                <div class="storage-controls">
+                    <button class="btn" onclick="viewStorage('localStorage')">View LocalStorage</button>
+                    <button class="btn" onclick="viewStorage('sessionStorage')">View SessionStorage</button>
+                    <button class="btn btn-success" onclick="saveStorage()">Save Changes</button>
+                    <button class="btn btn-danger" onclick="flushStorage('localStorage')">Clear LocalStorage</button>
+                    <button class="btn btn-danger" onclick="flushStorage('sessionStorage')">Clear SessionStorage</button>
+                </div>
+                <textarea id="storageContent" placeholder="Select a storage to view/edit..."></textarea>
+            </div>
+        </div>
+
+        <!-- Project Info Modal -->
+        <div id="projectInfoModal" class="modal" onclick="closeProjectInfo()">
+            <div class="modal-content project-info-modal" onclick="event.stopPropagation()">
+                <button class="close-btn" onclick="closeProjectInfo()">✕</button>
+                <h3 id="projectInfoTitle">Project Info</h3>
+                <div id="projectInfoContent" class="project-info-content"></div>
+            </div>
+        </div>
+
+        <!-- Projects Grid -->
+        <div id="projectsContainer" class="projects-grid">
+            <!-- Projects will be inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Projects data
+        const projects = {{PROJECTS_DATA}};
+        
+        {{JAVASCRIPT_CONTENT}}
+    </script>
+</body>
+</html>

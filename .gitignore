@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.internal/venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Generated files (auto-created by generator)
+# Note: index.html in root is generated, don't commit
+/index.html
+
+# Temporary files
+*.log
+*.tmp
+.cache/
+
+# Git
+*.orig
