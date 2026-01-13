@@ -12,7 +12,6 @@ if (-not (Test-Path $VenvDir)) {
     
     # Activate and install dependencies
     & "$VenvDir\Scripts\Activate.ps1"
-    pip install --upgrade pip
     pip install -r "$InternalDir\requirements.txt"
     Write-Host "Virtual environment created successfully!" -ForegroundColor Green
 } else {

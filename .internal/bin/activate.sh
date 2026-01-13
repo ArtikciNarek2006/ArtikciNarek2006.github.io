@@ -18,7 +18,6 @@ if [ ! -d "$VENV_DIR" ]; then
     
     # Activate and install dependencies
     source "$VENV_DIR/bin/activate"
-    pip install --upgrade pip
     pip install -r "$INTERNAL_DIR/requirements.txt"
     echo -e "${GREEN}Virtual environment created successfully!${NC}"
 else

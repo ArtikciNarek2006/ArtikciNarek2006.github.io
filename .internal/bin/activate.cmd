@@ -13,7 +13,6 @@ if not exist "%VENV_DIR%" (
     
     REM Activate and install dependencies
     call "%VENV_DIR%\Scripts\activate.bat"
-    pip install --upgrade pip
     pip install -r "%INTERNAL_DIR%\requirements.txt"
     echo Virtual environment created successfully!
 ) else (
