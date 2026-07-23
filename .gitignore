@@ -34,3 +34,6 @@ Desktop.ini
 
 # Git
 *.orig
+
+# Security
+.env

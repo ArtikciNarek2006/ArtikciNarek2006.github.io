@@ -17,11 +17,17 @@ import json
 import shutil
 import subprocess
 import uuid
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import webbrowser
 import time
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
 
 # Add parent directory to path to import gallery generator
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -31,6 +37,84 @@ from generative_galery import generator
 REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 PROJECTS_DIR = REPO_ROOT / "projects"
 INTERNAL_DIR = REPO_ROOT / ".internal"
+
+if load_dotenv is not None:
+    load_dotenv(REPO_ROOT / ".env")
+
+
+def get_github_credentials():
+    """Load GitHub credentials from the environment."""
+    return os.getenv("GITHUB_USERNAME"), os.getenv("GITHUB_PASSWORD")
+
+
+def create_git_askpass_script(temp_dir):
+    """Create a short-lived askpass helper for Git authentication."""
+    helper_script = temp_dir / "git-askpass.py"
+    helper_script.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os\n"
+        "import sys\n\n"
+        "prompt = ' '.join(sys.argv[1:]).lower()\n"
+        "if 'username' in prompt or 'login' in prompt:\n"
+        "    sys.stdout.write(os.environ.get('GITHUB_USERNAME', ''))\n"
+        "elif 'password' in prompt or 'token' in prompt:\n"
+        "    sys.stdout.write(os.environ.get('GITHUB_PASSWORD', ''))\n",
+        encoding="utf-8",
+    )
+
+    if os.name == "nt":
+        script_path = temp_dir / "git-askpass.cmd"
+        script_path.write_text(
+            f'@echo off\r\n"{sys.executable}" "{helper_script}" %*\r\n',
+            encoding="utf-8",
+        )
+        return script_path
+
+    helper_script.chmod(0o700)
+    return helper_script
+
+
+def run_git_command(args, *, auth=False, capture_output=False, text=True, check=True, cwd=None):
+    """Run a Git command with optional ephemeral authentication."""
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+
+    git_args = ["git"]
+
+    if auth:
+        username, password = get_github_credentials()
+        if not username or not password:
+            raise RuntimeError(
+                "GITHUB_USERNAME and GITHUB_PASSWORD must be set in .env for authenticated Git operations"
+            )
+
+        env["GITHUB_USERNAME"] = username
+        env["GITHUB_PASSWORD"] = password
+        if os.name == "nt":
+            env["GCM_INTERACTIVE"] = "never"
+
+        git_args.extend(["-c", "credential.helper=", "-c", "credential.interactive=never"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            askpass_path = create_git_askpass_script(Path(temp_dir))
+            env["GIT_ASKPASS"] = str(askpass_path)
+            return subprocess.run(
+                [*git_args, *args],
+                capture_output=capture_output,
+                text=text,
+                check=check,
+                env=env,
+                cwd=cwd,
+            )
+
+    return subprocess.run(
+        [*git_args, *args],
+        capture_output=capture_output,
+        text=text,
+        check=check,
+        env=env,
+        cwd=cwd,
+    )
 
 def create_project(name):
     """Create a new project with the required folder structure."""
@@ -396,7 +480,7 @@ def sync_git():
         
         # Git push
         print("Pushing to remote...")
-        result = subprocess.run(["git", "push"], capture_output=True, text=True)
+        result = run_git_command(["push"], auth=True, capture_output=True)
         
         if result.returncode == 0:
             print("✓ Changes synced successfully")
@@ -462,7 +546,7 @@ def migrate_project(name, new_repo_url):
             response = input("Push to remote? (yes/no): ")
             
             if response.lower() == "yes":
-                subprocess.run(["git", "push", "-u", "origin", "main"], check=True)
+                run_git_command(["push", "-u", "origin", "main"], auth=True, check=True)
                 print(f"✓ Project migrated successfully to {new_repo_url}")
             else:
                 print(f"Project prepared in {temp_path}")
