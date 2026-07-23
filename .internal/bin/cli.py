@@ -14,6 +14,7 @@ Available commands:
 import sys
 import os
 import json
+import importlib
 import shutil
 import subprocess
 import uuid
@@ -24,11 +25,6 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 import webbrowser
 import time
 
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    load_dotenv = None
-
 # Add parent directory to path to import gallery generator
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from generative_galery import generator
@@ -38,13 +34,33 @@ REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 PROJECTS_DIR = REPO_ROOT / "projects"
 INTERNAL_DIR = REPO_ROOT / ".internal"
 
-if load_dotenv is not None:
-    load_dotenv(REPO_ROOT / ".env")
+
+def get_dotenv_module():
+    """Import python-dotenv lazily when it is available."""
+    try:
+        return importlib.import_module("dotenv")
+    except ImportError:
+        return None
 
 
 def get_github_credentials():
     """Load GitHub credentials from the environment."""
-    return os.getenv("GITHUB_USERNAME"), os.getenv("GITHUB_PASSWORD")
+    dotenv_path = REPO_ROOT / ".env"
+
+    dotenv_module = get_dotenv_module()
+
+    if dotenv_module is not None:
+        dotenv_module.load_dotenv(dotenv_path=str(dotenv_path), override=True)
+
+    username = os.getenv("GITHUB_USERNAME")
+    password = os.getenv("GITHUB_PASSWORD")
+
+    if (not username or not password) and dotenv_module is not None and dotenv_path.exists():
+        values = dotenv_module.dotenv_values(str(dotenv_path))
+        username = username or values.get("GITHUB_USERNAME")
+        password = password or values.get("GITHUB_PASSWORD")
+
+    return username, password
 
 
 def create_git_askpass_script(temp_dir):
