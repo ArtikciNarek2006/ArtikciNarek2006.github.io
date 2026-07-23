@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import uuid
 import tempfile
+from urllib.parse import quote, urlsplit, urlunsplit
 from pathlib import Path
 from datetime import datetime
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -61,6 +62,19 @@ def get_github_credentials():
         password = password or values.get("GITHUB_PASSWORD")
 
     return username, password
+
+
+def build_authenticated_remote_url(remote_url, username, password):
+    """Return a temporary HTTPS remote URL with embedded credentials."""
+    parsed = urlsplit(remote_url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        return remote_url
+
+    netloc = f"{quote(username, safe='')}:{quote(password, safe='')}@{parsed.hostname}"
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+
+    return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
 
 
 def create_git_askpass_script(temp_dir):
@@ -114,6 +128,9 @@ def run_git_command(args, *, auth=False, capture_output=False, text=True, check=
         with tempfile.TemporaryDirectory() as temp_dir:
             askpass_path = create_git_askpass_script(Path(temp_dir))
             env["GIT_ASKPASS"] = str(askpass_path)
+            env["SSH_ASKPASS"] = str(askpass_path)
+            env["SSH_ASKPASS_REQUIRE"] = "force"
+            git_args.extend(["-c", f"core.askPass={askpass_path}"])
             return subprocess.run(
                 [*git_args, *args],
                 capture_output=capture_output,
@@ -496,7 +513,13 @@ def sync_git():
         
         # Git push
         print("Pushing to remote...")
-        result = run_git_command(["push"], auth=True, capture_output=True)
+        remote_result = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True, check=True)
+        username, password = get_github_credentials()
+        if not username or not password:
+            raise RuntimeError("GITHUB_USERNAME and GITHUB_PASSWORD must be set in .env for authenticated Git operations")
+
+        auth_remote_url = build_authenticated_remote_url(remote_result.stdout.strip(), username, password)
+        result = run_git_command(["push", auth_remote_url, "main"], capture_output=True)
         
         if result.returncode == 0:
             print("✓ Changes synced successfully")
@@ -562,7 +585,12 @@ def migrate_project(name, new_repo_url):
             response = input("Push to remote? (yes/no): ")
             
             if response.lower() == "yes":
-                run_git_command(["push", "-u", "origin", "main"], auth=True, check=True)
+                username, password = get_github_credentials()
+                if not username or not password:
+                    raise RuntimeError("GITHUB_USERNAME and GITHUB_PASSWORD must be set in .env for authenticated Git operations")
+
+                auth_remote_url = build_authenticated_remote_url(new_repo_url, username, password)
+                run_git_command(["push", auth_remote_url, "main"], check=True, cwd=temp_path)
                 print(f"✓ Project migrated successfully to {new_repo_url}")
             else:
                 print(f"Project prepared in {temp_path}")
