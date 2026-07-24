@@ -41,6 +41,7 @@ gallery serve
 
 # Sync changes to git
 gallery sync
+gallery sync --force         # Backup remote branch, then overwrite origin with local state
 
 # Migrate project to new repo
 gallery migrate my-project https://github.com/user/new-repo.git

@@ -7,7 +7,7 @@ Available commands:
   update [name|all]          - Validate and sync info.json data
   remove [name]              - Safely delete a project folder
   serve                      - Generate gallery and start local http.server
-  sync                       - Automate git add, commit, and push
+    sync [--force]             - Automate git add, commit, and push
   migrate [name] [new_repo]  - Clone project to another repo with renamed references
 """
 
@@ -75,6 +75,81 @@ def build_authenticated_remote_url(remote_url, username, password):
         netloc = f"{netloc}:{parsed.port}"
 
     return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
+
+def get_current_branch():
+    """Return the currently checked-out branch name."""
+    result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True)
+    branch = result.stdout.strip()
+
+    if not branch or branch == "HEAD":
+        raise RuntimeError("Cannot sync from a detached HEAD state")
+
+    return branch
+
+
+def get_remote_branch_sha(auth_remote_url, branch_name):
+    """Return the SHA for a remote branch, or None if it does not exist."""
+    result = run_git_command(["ls-remote", auth_remote_url, f"refs/heads/{branch_name}"], capture_output=True, text=True, check=True)
+    output = result.stdout.strip()
+
+    if not output:
+        return None
+
+    return output.split()[0]
+
+
+def get_branch_divergence(remote_sha):
+    """Return (ahead_count, behind_count) for HEAD relative to a remote SHA."""
+    if not remote_sha:
+        result = subprocess.run(["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True, check=True)
+        ahead_count = int(result.stdout.strip() or "0")
+        return ahead_count, 0
+
+    ahead_result = subprocess.run(["git", "rev-list", "--count", f"{remote_sha}..HEAD"], capture_output=True, text=True, check=True)
+    behind_result = subprocess.run(["git", "rev-list", "--count", f"HEAD..{remote_sha}"], capture_output=True, text=True, check=True)
+
+    ahead_count = int(ahead_result.stdout.strip() or "0")
+    behind_count = int(behind_result.stdout.strip() or "0")
+    return ahead_count, behind_count
+
+
+def build_sync_hint(branch_name, force):
+    """Return a concise hint for push failures or branch conflicts."""
+    if force:
+        return (
+            f"Hint: `gallery sync --force` will create a remote backup branch before overwriting origin/{branch_name}. "
+            f"You can also try `git push --force-with-lease origin HEAD:refs/heads/{branch_name}` if you want to manage it manually."
+        )
+
+    return (
+        f"Hint: Run `gallery sync --force` to create a backup branch and overwrite origin/{branch_name}, "
+        f"or run `git pull --rebase origin {branch_name}` and retry `gallery sync`."
+    )
+
+
+def push_with_auth(remote_url, branch_name, force=False, backup_branch_name=None):
+    """Push the current branch using a temporary authenticated remote URL."""
+    refspec = f"HEAD:refs/heads/{branch_name}"
+    if force:
+        refspec = f"+{refspec}"
+
+    if backup_branch_name:
+        remote_sha = get_remote_branch_sha(remote_url, branch_name)
+        if remote_sha:
+            backup_result = run_git_command(
+                ["push", remote_url, f"{remote_sha}:refs/heads/{backup_branch_name}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if backup_result.returncode != 0:
+                return backup_result, f"Failed to create remote backup branch '{backup_branch_name}'"
+
+            print(f"Created remote backup branch '{backup_branch_name}'")
+
+    return run_git_command(["push", remote_url, refspec], capture_output=True, text=True, check=False), None
 
 
 def create_git_askpass_script(temp_dir):
@@ -476,7 +551,7 @@ def serve_gallery():
         print(f"Error: {e}")
         return 1
 
-def sync_git():
+def sync_git(force=False):
     """Automate git add, commit, and push."""
     os.chdir(REPO_ROOT)
     
@@ -488,46 +563,64 @@ def sync_git():
             return 1
         
         # Check for changes
-        result = subprocess.run(["git", "status", "--porcelain"], 
-                              capture_output=True, text=True)
-        
-        if not result.stdout.strip():
-            print("No changes to commit")
-            return 0
-        
-        print("Changes detected:")
-        print(result.stdout)
-        
-        # Get commit message
-        message = input("Enter commit message (or press Enter for auto-message): ").strip()
-        if not message:
-            message = f"Update gallery - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        
-        # Git add
-        print("\nAdding files...")
-        subprocess.run(["git", "add", "."], check=True)
-        
-        # Git commit
-        print("Committing changes...")
-        subprocess.run(["git", "commit", "-m", message], check=True)
-        
-        # Git push
-        print("Pushing to remote...")
+        result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+        working_tree_dirty = bool(result.stdout.strip())
+
+        branch_name = get_current_branch()
         remote_result = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True, check=True)
         username, password = get_github_credentials()
         if not username or not password:
             raise RuntimeError("GITHUB_USERNAME and GITHUB_PASSWORD must be set in .env for authenticated Git operations")
 
         auth_remote_url = build_authenticated_remote_url(remote_result.stdout.strip(), username, password)
-        result = run_git_command(["push", auth_remote_url, "main"], capture_output=True)
+        remote_sha = get_remote_branch_sha(auth_remote_url, branch_name)
+        ahead_count, behind_count = get_branch_divergence(remote_sha)
+
+        if working_tree_dirty:
+            print("Changes detected:")
+            print(result.stdout)
+
+            # Get commit message
+            message = input("Enter commit message (or press Enter for auto-message): ").strip()
+            if not message:
+                message = f"Update gallery - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+            # Git add
+            print("\nAdding files...")
+            subprocess.run(["git", "add", "."], check=True)
+
+            # Git commit
+            print("Committing changes...")
+            subprocess.run(["git", "commit", "-m", message], check=True)
+        elif ahead_count == 0 and behind_count == 0 and not force:
+            print("No changes to commit")
+            return 0
+        elif ahead_count == 0 and behind_count > 0 and not force:
+            print(f"Error: Local branch '{branch_name}' is behind 'origin/{branch_name}' by {behind_count} commit(s).")
+            print(build_sync_hint(branch_name, force=False))
+            return 1
         
+        if force:
+            print("Force mode enabled: creating a remote backup before overwrite...")
+
+        print("Pushing to remote...")
+        backup_branch_name = f"backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}" if force else None
+        result, backup_error = push_with_auth(auth_remote_url, branch_name, force=force, backup_branch_name=backup_branch_name)
+
+        if backup_error:
+            print(f"Error: {backup_error}")
+            print(build_sync_hint(branch_name, force=True))
+            return 1
+
         if result.returncode == 0:
             print("✓ Changes synced successfully")
             return 0
-        else:
-            print(f"Warning: Push failed - {result.stderr}")
-            print("Changes committed locally but not pushed")
-            return 1
+
+        stderr = (result.stderr or "").strip()
+        print(f"Error: Git push failed - {stderr if stderr else 'unknown error'}")
+        print(build_sync_hint(branch_name, force))
+        print("Changes remain committed locally but were not pushed")
+        return 1
         
     except subprocess.CalledProcessError as e:
         print(f"Error: Git command failed - {e}")
@@ -610,6 +703,7 @@ def print_help():
     print("  cli.py update all")
     print("  cli.py serve")
     print("  cli.py sync")
+    print("  cli.py sync --force")
     print("  cli.py remove old-project")
     print("  cli.py migrate my-project https://github.com/user/new-repo.git")
 
@@ -637,7 +731,14 @@ def main():
         return serve_gallery()
     
     elif command == "sync":
-        return sync_git()
+        sync_args = sys.argv[2:]
+        invalid_args = [arg for arg in sync_args if arg not in ["--force", "-f"]]
+        if invalid_args:
+            print(f"Error: Unknown sync option(s): {' '.join(invalid_args)}")
+            print("Usage: sync [--force]")
+            return 1
+
+        return sync_git(force=any(arg in ["--force", "-f"] for arg in sync_args))
     
     elif command == "migrate":
         name = sys.argv[2] if len(sys.argv) > 2 else None
