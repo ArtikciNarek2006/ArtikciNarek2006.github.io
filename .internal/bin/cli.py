@@ -21,6 +21,7 @@ import subprocess
 import uuid
 import tempfile
 import socket
+import re
 from urllib.parse import quote, urlsplit, urlunsplit
 from pathlib import Path
 from datetime import datetime
@@ -36,6 +37,7 @@ from generative_galery import generator
 REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 PROJECTS_DIR = REPO_ROOT / "projects"
 INTERNAL_DIR = REPO_ROOT / ".internal"
+MIGRATIONS_DIR = INTERNAL_DIR / "migrations"
 
 
 def get_dotenv_module():
@@ -67,8 +69,31 @@ def get_github_credentials():
 
 
 def build_authenticated_remote_url(remote_url, username, password):
-    """Return a temporary HTTPS remote URL with embedded credentials."""
+    """Return a temporary GitHub HTTPS remote URL with embedded credentials."""
     parsed = urlsplit(remote_url)
+
+    if parsed.hostname and parsed.hostname.lower() in {"github.com", "www.github.com"}:
+        if parsed.scheme == "https":
+            netloc = f"{quote(username, safe='')}:{quote(password, safe='')}@{parsed.hostname}"
+            if parsed.port:
+                netloc = f"{netloc}:{parsed.port}"
+
+            return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
+        if parsed.scheme == "ssh":
+            https_path = parsed.path if parsed.path.startswith("/") else f"/{parsed.path}"
+            netloc = f"{quote(username, safe='')}:{quote(password, safe='')}@{parsed.hostname}"
+            if parsed.port:
+                netloc = f"{netloc}:{parsed.port}"
+
+            return urlunsplit(("https", netloc, https_path, parsed.query, parsed.fragment))
+
+    scp_match = re.match(r"^(?:(?P<user>[^@]+)@)?(?P<host>[^:]+):(?P<path>.+)$", remote_url)
+    if scp_match and scp_match.group("host").lower() in {"github.com", "www.github.com"}:
+        https_path = "/" + scp_match.group("path").lstrip("/")
+        netloc = f"{quote(username, safe='')}:{quote(password, safe='')}@{scp_match.group('host')}"
+        return urlunsplit(("https", netloc, https_path, "", ""))
+
     if parsed.scheme != "https" or not parsed.hostname:
         return remote_url
 
@@ -99,6 +124,22 @@ def get_remote_branch_sha(auth_remote_url, branch_name):
         return None
 
     return output.split()[0]
+
+
+def get_remote_branch_sha_for_sync(remote_url, branch_name):
+    """Return the remote branch SHA using unauthenticated access first, then .env credentials if available."""
+    try:
+        return get_remote_branch_sha(remote_url, branch_name)
+    except Exception:
+        username, password = get_github_credentials()
+        if not username or not password:
+            return None
+
+        auth_remote_url = build_authenticated_remote_url(remote_url, username, password)
+        try:
+            return get_remote_branch_sha(auth_remote_url, branch_name)
+        except Exception:
+            return None
 
 
 def get_branch_divergence(remote_sha):
@@ -594,13 +635,19 @@ def sync_git(force=False):
 
         branch_name = get_current_branch()
         remote_result = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True, check=True)
-        username, password = get_github_credentials()
-        if not username or not password:
-            raise RuntimeError("GITHUB_USERNAME and GITHUB_PASSWORD must be set in .env for authenticated Git operations")
-
-        auth_remote_url = build_authenticated_remote_url(remote_result.stdout.strip(), username, password)
-        remote_sha = get_remote_branch_sha(auth_remote_url, branch_name)
+        remote_url = remote_result.stdout.strip()
+        remote_sha = get_remote_branch_sha_for_sync(remote_url, branch_name)
         ahead_count, behind_count = get_branch_divergence(remote_sha)
+
+        if ahead_count == 0 and behind_count > 0 and not force:
+            print(f"Error: Local branch '{branch_name}' is behind 'origin/{branch_name}' by {behind_count} commit(s).")
+            print(build_sync_hint(branch_name, force=False))
+            return 1
+
+        should_push = working_tree_dirty or ahead_count > 0 or force
+        if not should_push:
+            print("No changes to commit")
+            return 0
 
         if working_tree_dirty:
             print("Changes detected:")
@@ -618,14 +665,13 @@ def sync_git(force=False):
             # Git commit
             print("Committing changes...")
             subprocess.run(["git", "commit", "-m", message], check=True)
-        elif ahead_count == 0 and behind_count == 0 and not force:
-            print("No changes to commit")
-            return 0
-        elif ahead_count == 0 and behind_count > 0 and not force:
-            print(f"Error: Local branch '{branch_name}' is behind 'origin/{branch_name}' by {behind_count} commit(s).")
-            print(build_sync_hint(branch_name, force=False))
-            return 1
-        
+
+        username, password = get_github_credentials()
+        if not username or not password:
+            raise RuntimeError("GITHUB_USERNAME and GITHUB_PASSWORD must be set in .env for authenticated Git operations")
+
+        auth_remote_url = build_authenticated_remote_url(remote_url, username, password)
+
         if force:
             print("Force mode enabled: creating a remote backup before overwrite...")
 
@@ -670,56 +716,58 @@ def migrate_project(name, new_repo_url):
     
     print(f"Migrating project '{name}' to {new_repo_url}...")
     
-    # Create temporary directory
-    import tempfile
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir) / name
-        
-        try:
-            # Copy project to temp directory
-            shutil.copytree(project_dir, temp_path)
-            
-            # Remove .project_info as it's gallery-specific
-            info_dir = temp_path / ".project_info"
-            if info_dir.exists():
-                shutil.rmtree(info_dir)
-            
-            # Update references in HTML files
-            for html_file in temp_path.glob("*.html"):
-                content = html_file.read_text(encoding="utf-8")
-                # Remove gallery back link
-                content = content.replace('href="../../index.html"', 'href="#"')
-                content = content.replace("← Back to Gallery", "")
-                html_file.write_text(content, encoding="utf-8")
-            
-            # Initialize git and push
-            os.chdir(temp_path)
-            subprocess.run(["git", "init"], check=True)
-            subprocess.run(["git", "add", "."], check=True)
-            subprocess.run(["git", "commit", "-m", "Initial commit"], check=True)
-            subprocess.run(["git", "branch", "-M", "main"], check=True)
-            subprocess.run(["git", "remote", "add", "origin", new_repo_url], check=True)
-            
-            print("\nReady to push to new repository.")
-            response = input("Push to remote? (yes/no): ")
-            
-            if response.lower() == "yes":
-                username, password = get_github_credentials()
-                if not username or not password:
-                    raise RuntimeError("GITHUB_USERNAME and GITHUB_PASSWORD must be set in .env for authenticated Git operations")
+    MIGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
+    export_name = f"{name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    export_dir = MIGRATIONS_DIR / export_name
 
-                auth_remote_url = build_authenticated_remote_url(new_repo_url, username, password)
-                run_git_command(["push", auth_remote_url, "main"], check=True, cwd=temp_path)
-                print(f"✓ Project migrated successfully to {new_repo_url}")
-            else:
-                print(f"Project prepared in {temp_path}")
-                print("You can manually push later")
-            
-            return 0
-            
-        except Exception as e:
-            print(f"Error: Migration failed - {e}")
-            return 1
+    if export_dir.exists():
+        shutil.rmtree(export_dir)
+
+    try:
+        # Copy project to a persistent export directory
+        shutil.copytree(project_dir, export_dir)
+
+        # Remove .project_info as it's gallery-specific
+        info_dir = export_dir / ".project_info"
+        if info_dir.exists():
+            shutil.rmtree(info_dir)
+
+        # Update references in HTML files
+        for html_file in export_dir.glob("*.html"):
+            content = html_file.read_text(encoding="utf-8")
+            # Remove gallery back link
+            content = content.replace('href="../../index.html"', 'href="#"')
+            content = content.replace("← Back to Gallery", "")
+            html_file.write_text(content, encoding="utf-8")
+
+        # Initialize git and stage initial content
+        os.chdir(export_dir)
+        subprocess.run(["git", "init"], check=True)
+        subprocess.run(["git", "add", "."], check=True)
+        subprocess.run(["git", "commit", "-m", "Initial commit"], check=True)
+        subprocess.run(["git", "branch", "-M", "main"], check=True)
+        subprocess.run(["git", "remote", "add", "origin", new_repo_url], check=True)
+
+        print(f"\nReady to push to new repository from {export_dir}.")
+        response = input("Push to remote? (yes/no): ")
+
+        if response.lower() == "yes":
+            username, password = get_github_credentials()
+            if not username or not password:
+                raise RuntimeError("GITHUB_USERNAME and GITHUB_PASSWORD must be set in .env for authenticated Git operations")
+
+            auth_remote_url = build_authenticated_remote_url(new_repo_url, username, password)
+            run_git_command(["push", auth_remote_url, "main"], check=True, cwd=export_dir)
+            print(f"✓ Project migrated successfully to {new_repo_url}")
+        else:
+            print(f"Project prepared in {export_dir}")
+            print("You can manually push later")
+
+        return 0
+
+    except Exception as e:
+        print(f"Error: Migration failed - {e}")
+        return 1
 
 def print_help():
     """Print help message."""
