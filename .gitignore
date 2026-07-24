@@ -25,7 +25,8 @@ Desktop.ini
 
 # Generated files (auto-created by generator)
 # Note: index.html in root is generated, don't commit
-/index.html
+# /index.html
+# Note: UPDATE removeing this so the project could be served from static username.github.io repos
 
 # Temporary files
 *.log

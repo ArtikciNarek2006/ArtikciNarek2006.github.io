@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Gallery</title>
+    <style>
+        :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --text-primary: #c9d1d9;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --border: #30363d;
+    --success: #3fb950;
+    --danger: #f85149;
+    --shadow: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eaeef2;
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --accent: #0969da;
+    --accent-hover: #0550ae;
+    --border: #d0d7de;
+    --shadow: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="oled"] {
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #141414;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --accent: #1b571b;
+    --accent-hover: #3a773a;
+    --border: #1a1a1a;
+    --shadow: rgba(0, 255, 0, 0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    transition: background 0.3s, color 0.3s;
+}
+
+/* Clock Overlay */
+.clock-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    animation: fadeIn 0.5s;
+}
+
+.clock-overlay.hidden {
+    display: none;
+}
+
+.clock-container {
+    text-align: center;
+}
+
+.clock {
+    width: 300px;
+    height: 300px;
+    border: 8px solid rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    position: relative;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.3);
+    margin: 0 auto 30px;
+}
+
+.center-dot {
+    width: 15px;
+    height: 15px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+}
+
+.hand {
+    position: absolute;
+    background: white;
+    transform-origin: bottom center;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.hour-hand {
+    width: 8px;
+    height: 80px;
+    bottom: 50%;
+    left: 50%;
+    margin-left: -4px;
+}
+
+.minute-hand {
+    width: 6px;
+    height: 110px;
+    bottom: 50%;
+    left: 50%;
+    margin-left: -3px;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.second-hand {
+    width: 3px;
+    height: 120px;
+    bottom: 50%;
+    left: 50%;
+    margin-left: -1.5px;
+    background: #ff6b6b;
+}
+
+.digital-time {
+    font-size: 3rem;
+    font-weight: 300;
+    color: white;
+    margin-bottom: 10px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.date-display {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.8);
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.close-clock {
+    margin-top: 40px;
+    padding: 15px 40px;
+    font-size: 1.1rem;
+    background: white;
+    color: #667eea;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+}
+
+.close-clock:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Gallery Container */
+.gallery-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+.header {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 30px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.title {
+    font-size: 2.5rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.header-controls {
+    display: flex;
+    gap: 10px;
+}
+
+/* Toolbar */
+.toolbar {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+    border: 1px solid var(--border);
+}
+
+.search-box {
+    flex: 1;
+    min-width: 200px;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 10px 15px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.view-controls, .filter-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.view-btn, .btn {
+    padding: 10px 15px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 16px;
+}
+
+.view-btn:hover, .btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.view-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+select {
+    padding: 10px 15px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 14px;
+}
+
+/* Panel */
+.panel {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+}
+
+.panel h3 {
+    margin-bottom: 15px;
+    color: var(--accent);
+}
+
+.storage-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.btn-danger {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
+}
+
+.btn-danger:hover {
+    opacity: 0.8;
+}
+
+.btn-success {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+}
+
+.btn-success:hover {
+    opacity: 0.8;
+}
+
+.storage-modal {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 800px;
+    width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+}
+
+.storage-modal h3 {
+    margin-bottom: 20px;
+    color: var(--accent);
+}
+
+.project-info-modal {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 40px;
+    max-width: 700px;
+    width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+}
+
+.project-info-modal h3 {
+    margin-bottom: 20px;
+    color: var(--accent);
+    font-size: 1.5rem;
+}
+
+.project-info-description {
+    color: var(--text-primary);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.project-info-details {
+    padding: 15px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.project-info-details p {
+    margin: 8px 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.project-info-details strong {
+    color: var(--text-primary);
+    margin-right: 8px;
+}
+
+#storageContent {
+    width: 100%;
+    background: var(--bg-tertiary);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    min-height: 300px;
+    resize: vertical;
+    margin-top: 15px;
+}
+
+#storageContent:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* Projects Grid */
+.projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.projects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.projects-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* Project Card */
+.project-card {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: all 0.3s;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+}
+
+.project-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px var(--shadow);
+    border-color: var(--accent);
+}
+
+/* Grid View - Image on top, content below */
+.project-card.grid-view {
+    padding: 0;
+}
+
+.project-card.grid-view .project-slideshow {
+    width: 100%;
+    height: 200px;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-tertiary);
+}
+
+.project-card.grid-view .project-slideshow img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.project-card.grid-view .project-content {
+    padding: 15px;
+}
+
+.project-card.grid-view .project-bottom {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.project-card.grid-view .project-mini-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--bg-tertiary);
+}
+
+.project-card.grid-view .project-short-desc {
+    flex: 1;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.3;
+}
+
+/* List View - Horizontal with long description */
+.project-card.list-view {
+    flex-direction: row;
+    padding: 15px;
+    gap: 15px;
+}
+
+.project-card.list-view .project-slideshow {
+    width: 35%;
+    min-width: 250px;
+    height: 180px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+.project-card.list-view .project-slideshow img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.project-card.list-view .project-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Compact View - Small icon, info button */
+.project-card.compact-view {
+    flex-direction: row;
+    padding: 8px 12px;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.project-card.compact-view .project-compact-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--bg-tertiary);
+}
+
+.project-card.compact-view .project-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.project-card.compact-view .project-info-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.project-card.compact-view .project-info-btn:hover {
+    background: var(--accent-hover);
+}
+
+/* Slideshow container shared styles */
+.project-slideshow {
+    position: relative;
+}
+
+.project-slideshow img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.project-slideshow img.active {
+    opacity: 1;
+    z-index: 1;
+}
+
+.project-slideshow img.inactive {
+    opacity: 0;
+    z-index: 0;
+}
+
+.project-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.project-description {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-bottom: 10px;
+}
+
+.project-description.long {
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.project-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.tag {
+    padding: 4px 10px;
+    background: var(--accent);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.project-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.project-meta span {
+    margin: 0 4px;
+}
+
+.project-card.compact-view .project-meta {
+    margin: 0;
+}
+
+.project-card.compact-view .project-title {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.project-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 8px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 0.9rem;
+}
+
+.action-btn:hover {
+    background: var(--accent-hover);
+}
+
+.action-btn.secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.action-btn.secondary:hover {
+    background: var(--border);
+}
+
+/* List View */
+.project-card.list-view {
+    display: flex;
+    flex-direction: row;
+    padding: 15px;
+}
+
+.project-card.list-view .project-header {
+    width: 100%;
+}
+
+/* Compact View */
+.project-card.compact-view {
+    padding: 10px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.project-card.compact-view .project-icon-container {
+    width: 60px;
+    height: 60px;
+}
+
+.project-card.compact-view .project-header {
+    margin-bottom: 0;
+}
+
+.project-card.compact-view .project-description,
+.project-card.compact-view .project-tags,
+.project-card.compact-view .project-actions {
+    display: none;
+}
+
+.project-card.compact-view .project-info {
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+}
+
+.project-card.compact-view .project-title {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.project-card.compact-view .project-meta {
+    margin: 0;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    position: relative;
+}
+
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.5rem;
+    transition: all 0.3s;
+    z-index: 10;
+}
+
+.close-btn:hover {
+    background: var(--accent-hover);
+    transform: rotate(90deg);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .projects-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .title {
+        font-size: 1.8rem;
+    }
+
+    .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .project-card.list-view {
+        flex-direction: column;
+    }
+
+    .project-card.list-view .project-slideshow {
+        width: 100%;
+        height: 200px;
+    }
+
+    .project-info-tooltip {
+        right: auto;
+        left: 0;
+        width: 250px;
+    }
+}
+
+    </style>
+</head>
+<body data-theme="dark">
+    <!-- Clock Preview Overlay -->
+    <div id="clockOverlay" class="clock-overlay">
+        <div class="clock-container">
+            <div class="clock">
+                <div class="hand hour-hand"></div>
+                <div class="hand minute-hand"></div>
+                <div class="hand second-hand"></div>
+                <div class="center-dot"></div>
+            </div>
+            <div class="digital-time" id="digitalTime"></div>
+            <div class="date-display" id="dateDisplay"></div>
+        </div>
+        <button class="close-clock" onclick="closeClock()">Enter Gallery →</button>
+    </div>
+
+    <!-- Main Gallery -->
+    <div class="gallery-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">🎨 Project Gallery</h1>
+                <div class="header-controls">
+                    <button class="btn" onclick="showClock()" title="Show Clock">🕐</button>
+                    <button class="btn" onclick="toggleGithubStats()" title="GitHub Stats">📊</button>
+                    <button class="btn" onclick="toggleStorageManager()" title="Storage Manager">💾</button>
+                    <button class="btn" onclick="toggleTheme()" title="Toggle Theme" id="themeBtn">🌓</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search projects..." oninput="filterProjects()">
+            </div>
+            <div class="view-controls">
+                <button class="view-btn active" data-view="grid" onclick="setView('grid')" title="Grid View">⊞</button>
+                <button class="view-btn" data-view="list" onclick="setView('list')" title="List View">☰</button>
+                <button class="view-btn" data-view="compact" onclick="setView('compact')" title="Compact View">≡</button>
+            </div>
+            <div class="filter-controls">
+                <select id="tagFilter" onchange="filterProjects()">
+                    <option value="">All Tags</option>
+                </select>
+                <select id="sortBy" onchange="sortProjects()">
+                    <option value="date-desc">Newest First</option>
+                    <option value="date-asc">Oldest First</option>
+                    <option value="name-asc">Name A-Z</option>
+                    <option value="name-desc">Name Z-A</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- GitHub Stats Panel -->
+        <div id="githubStats" class="panel" style="display: none;">
+            <h3>📊 GitHub Statistics</h3>
+            <div id="githubStatsContent">Loading...</div>
+        </div>
+
+        <!-- Storage Manager Modal -->
+        <div id="storageManagerModal" class="modal" onclick="closeStorageManager()">
+            <div class="modal-content storage-modal" onclick="event.stopPropagation()">
+                <button class="close-btn" onclick="closeStorageManager()">✕</button>
+                <h3>💾 Storage Manager</h3>
+                <div class="storage-controls">
+                    <button class="btn" onclick="viewStorage('localStorage')">View LocalStorage</button>
+                    <button class="btn" onclick="viewStorage('sessionStorage')">View SessionStorage</button>
+                    <button class="btn btn-success" onclick="saveStorage()">Save Changes</button>
+                    <button class="btn btn-danger" onclick="flushStorage('localStorage')">Clear LocalStorage</button>
+                    <button class="btn btn-danger" onclick="flushStorage('sessionStorage')">Clear SessionStorage</button>
+                </div>
+                <textarea id="storageContent" placeholder="Select a storage to view/edit..."></textarea>
+            </div>
+        </div>
+
+        <!-- Project Info Modal -->
+        <div id="projectInfoModal" class="modal" onclick="closeProjectInfo()">
+            <div class="modal-content project-info-modal" onclick="event.stopPropagation()">
+                <button class="close-btn" onclick="closeProjectInfo()">✕</button>
+                <h3 id="projectInfoTitle">Project Info</h3>
+                <div id="projectInfoContent" class="project-info-content"></div>
+            </div>
+        </div>
+
+        <!-- Projects Grid -->
+        <div id="projectsContainer" class="projects-grid">
+            <!-- Projects will be inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Projects data
+        const projects = [
+  {
+    "icon_file_name": "main.png",
+    "images": [
+      "main.png",
+      "3.png",
+      "1.png"
+    ],
+    "description_long": "Pnas naosn oadx naodnxo nnosdnn ianofdncf ondcn onsocn zodcn onzodnc ozndo nzd.",
+    "desciption_short": "Simple calculator App with ai 123123",
+    "title": "AI Calculator 123123",
+    "github_url": "None",
+    "tags": [
+      "AI",
+      "Utils"
+    ],
+    "date_published": "2023-05-10",
+    "version": "0.22+test",
+    "id": "086c30a2-ea31-11f0-92ed-9822efcaeacd",
+    "project_path": "project_2",
+    "images_full_paths": [
+      "projects/project_2/.project_info/images/main.png",
+      "projects/project_2/.project_info/images/3.png",
+      "projects/project_2/.project_info/images/1.png"
+    ],
+    "icon_path": "projects/project_2/.project_info/images/main.png"
+  }
+];
+        
+        // Gallery Application JavaScript
+// projects array is populated by injected data
+let filteredProjects = [];
+let currentView = 'grid';
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadProjects();
+    setupEventListeners();
+    loadTheme();
+    loadViewPreference();
+    
+    // Update analog clock if visible
+    const clockOverlay = document.getElementById('clockOverlay');
+    if (clockOverlay && !clockOverlay.classList.contains('hidden')) {
+        setInterval(updateAnalogClock, 1000);
+    }
+});
+
+function setupEventListeners() {
+    document.getElementById('searchInput').addEventListener('input', filterProjects);
+    document.getElementById('tagFilter').addEventListener('change', filterProjects);
+    document.getElementById('sortBy').addEventListener('change', sortProjects);
+}
+
+// Theme Management
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('gallery-theme', theme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const themes = ['dark', 'light', 'oled'];
+    const currentIndex = themes.indexOf(currentTheme);
+    const nextTheme = themes[(currentIndex + 1) % themes.length];
+    setTheme(nextTheme);
+}
+
+function loadTheme() {
+    const savedTheme = localStorage.getItem('gallery-theme') || 'dark';
+    setTheme(savedTheme);
+}
+
+// Storage Manager
+function toggleStorageManager() {
+    const modal = document.getElementById('storageManagerModal');
+    const isVisible = modal.style.display === 'flex';
+    
+    if (isVisible) {
+        modal.style.display = 'none';
+    } else {
+        viewStorage('localStorage');
+        modal.style.display = 'flex';
+    }
+}
+
+function closeStorageManager() {
+    document.getElementById('storageManagerModal').style.display = 'none';
+}
+
+function viewStorage(type) {
+    const data = {};
+    const storage = type === 'localStorage' ? localStorage : sessionStorage;
+    
+    Object.keys(storage).forEach(key => {
+        data[key] = storage.getItem(key);
+    });
+    
+    document.getElementById('storageContent').value = JSON.stringify(data, null, 2);
+}
+
+function flushStorage(type) {
+    if (confirm(`Are you sure you want to clear ${type}?`)) {
+        if (type === 'localStorage') {
+            localStorage.clear();
+        } else {
+            sessionStorage.clear();
+        }
+        viewStorage(type);
+        alert(`${type} cleared!`);
+    }
+}
+
+function saveStorage() {
+    try {
+        const content = JSON.parse(document.getElementById('storageContent').value);
+        
+        // Determine which storage to update based on current view
+        // For simplicity, we'll update localStorage
+        localStorage.clear();
+        Object.entries(content).forEach(([key, value]) => {
+            localStorage.setItem(key, value);
+        });
+        
+        alert('Storage updated successfully!');
+        loadTheme();
+        loadViewPreference();
+    } catch (e) {
+        alert('Invalid JSON format: ' + e.message);
+    }
+}
+
+function showClock() {
+    const clockOverlay = document.getElementById('clockOverlay');
+    if (clockOverlay) {
+        clockOverlay.classList.remove('hidden');
+        updateAnalogClock();
+    }
+}
+
+function closeClock() {
+    const clockOverlay = document.getElementById('clockOverlay');
+    if (clockOverlay) {
+        clockOverlay.classList.add('hidden');
+    }
+}
+
+function updateAnalogClock() {
+    const now = new Date();
+    const hours = now.getHours() % 12;
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+    
+    const hourHand = document.querySelector('.hour-hand');
+    const minuteHand = document.querySelector('.minute-hand');
+    const secondHand = document.querySelector('.second-hand');
+    
+    if (hourHand) hourHand.style.transform = `rotate(${hours * 30 + minutes * 0.5}deg)`;
+    if (minuteHand) minuteHand.style.transform = `rotate(${minutes * 6}deg)`;
+    if (secondHand) secondHand.style.transform = `rotate(${seconds * 6}deg)`;
+    
+    const digitalTime = document.getElementById('digitalTime');
+    const dateDisplay = document.getElementById('dateDisplay');
+    
+    if (digitalTime) {
+        digitalTime.textContent = now.toLocaleTimeString('en-US', { hour12: false });
+    }
+    if (dateDisplay) {
+        dateDisplay.textContent = now.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+    }
+}
+
+// View Management
+function loadViewPreference() {
+    const savedView = localStorage.getItem('gallery-view') || 'grid';
+    setView(savedView);
+}
+
+function setView(view) {
+    currentView = view;
+    localStorage.setItem('gallery-view', view);
+    
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[onclick="setView('${view}')"]`).classList.add('active');
+    
+    const container = document.getElementById('projectsContainer');
+    container.className = `projects-${view}`;
+    
+    renderProjects();
+}
+
+// Filter and Sort Functions
+function populateFilters() {
+    const tagFilter = document.getElementById('tagFilter');
+    const allTags = new Set();
+    
+    projects.forEach(p => {
+        p.tags.forEach(tag => allTags.add(tag));
+    });
+    
+    Array.from(allTags).sort().forEach(tag => {
+        const option = document.createElement('option');
+        option.value = tag;
+        option.textContent = tag;
+        tagFilter.appendChild(option);
+    });
+}
+
+function filterProjects() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const selectedTag = document.getElementById('tagFilter').value;
+    
+    filteredProjects = projects.filter(project => {
+        const matchesSearch = !searchTerm || 
+            project.title.toLowerCase().includes(searchTerm) ||
+            project.desciption_short.toLowerCase().includes(searchTerm) ||
+            project.description_long.toLowerCase().includes(searchTerm);
+        
+        const matchesTag = !selectedTag || project.tags.includes(selectedTag);
+        
+        return matchesSearch && matchesTag;
+    });
+    
+    sortProjects();
+}
+
+function sortProjects() {
+    const sortBy = document.getElementById('sortBy').value;
+    
+    filteredProjects.sort((a, b) => {
+        switch(sortBy) {
+            case 'date-desc':
+                return new Date(b.date_published) - new Date(a.date_published);
+            case 'date-asc':
+                return new Date(a.date_published) - new Date(b.date_published);
+            case 'name-asc':
+                return a.title.localeCompare(b.title);
+            case 'name-desc':
+                return b.title.localeCompare(a.title);
+            default:
+                return 0;
+        }
+    });
+    
+    renderProjects();
+}
+
+// Render Functions
+function renderProjects() {
+    const container = document.getElementById('projectsContainer');
+    container.innerHTML = '';
+    
+    if (filteredProjects.length === 0) {
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-secondary);">No projects found</p>';
+        return;
+    }
+    
+    filteredProjects.forEach(project => {
+        const card = createProjectCard(project);
+        container.appendChild(card);
+    });
+}
+
+function createProjectCard(project) {
+    const card = document.createElement('div');
+    card.className = `project-card ${currentView}-view`;
+    card.dataset.projectId = project.id;
+    
+    const fallbackSVG = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="200"%3E%3Crect fill="%23333" width="300" height="200"/%3E%3Ctext fill="%23fff" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-family="sans-serif" font-size="20"%3ENo Image%3C/text%3E%3C/svg%3E';
+    
+    // Get all images for slideshow
+    const images = project.images_full_paths && project.images_full_paths.length > 0 
+        ? project.images_full_paths 
+        : [project.icon_path || fallbackSVG];
+    
+    // Create slideshow HTML
+    let slideshowHTML = '<div class="project-slideshow">';
+    images.forEach((img, index) => {
+        slideshowHTML += `<img src="${img}" alt="${project.title}" class="${index === 0 ? 'active' : 'inactive'}" onerror="this.src='${fallbackSVG}'">`;
+    });
+    slideshowHTML += '</div>';
+    
+    // Build card HTML based on view mode
+    if (currentView === 'grid') {
+        card.innerHTML = `
+            ${slideshowHTML}
+            <div class="project-content">
+                <h3 class="project-title">${project.title}</h3>
+                <div class="project-bottom">
+                    <img src="${project.icon_path || images[0]}" class="project-mini-icon" alt="icon" onerror="this.src='${fallbackSVG}'">
+                    <div class="project-short-desc">${project.desciption_short}</div>
+                </div>
+                <div class="project-tags">
+                    ${project.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+                <div class="project-meta">
+                    <span>📅 ${new Date(project.date_published).toLocaleDateString()}</span>
+                    <span>v${project.version}</span>
+                </div>
+                <div class="project-actions">
+                    <button class="action-btn" onclick="openProject('${project.project_path}', event)">Open Project</button>
+                </div>
+            </div>
+        `;
+    } else if (currentView === 'list') {
+        card.innerHTML = `
+            ${slideshowHTML}
+            <div class="project-content">
+                <h3 class="project-title">${project.title}</h3>
+                <p class="project-description long">${project.description_long}</p>
+                <div class="project-tags">
+                    ${project.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+                <div class="project-meta">
+                    <span>📅 ${new Date(project.date_published).toLocaleDateString()}</span>
+                    <span>v${project.version}</span>
+                </div>
+                <div class="project-actions">
+                    <button class="action-btn" onclick="openProject('${project.project_path}', event)">Open Project</button>
+                </div>
+            </div>
+        `;
+    } else { // compact
+        const iconHTML = `<img src="${project.icon_path || fallbackSVG}" class="project-compact-icon" alt="icon" onerror="this.src='${fallbackSVG}'">`;
+        card.innerHTML = `
+            ${iconHTML}
+            <div class="project-content">
+                <h3 class="project-title">${project.title}</h3>
+                <div class="project-meta">
+                    <span>📅 ${new Date(project.date_published).toLocaleDateString()}</span>
+                </div>
+            </div>
+            <button class="project-info-btn" data-project-id="${project.id}">
+                ℹ
+            </button>
+        `;
+        
+        // Add event listener for info button
+        const infoBtn = card.querySelector('.project-info-btn');
+        infoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showProjectInfo(project);
+        });
+        
+        card.onclick = (e) => {
+            if (!e.target.closest('.project-info-btn')) {
+                openProject(project.project_path, e);
+            }
+        };
+    }
+    
+    // Setup auto-playing slideshow on card hover (not just icon)
+    if (images.length > 1 && currentView !== 'compact') {
+        let currentIndex = 0;
+        let intervalId = null;
+        
+        card.addEventListener('mouseenter', () => {
+            intervalId = setInterval(() => {
+                const slideshowEl = card.querySelector('.project-slideshow');
+                if (!slideshowEl) return;
+                const slideImages = slideshowEl.querySelectorAll('img');
+                
+                slideImages[currentIndex].classList.remove('active');
+                slideImages[currentIndex].classList.add('inactive');
+                
+                currentIndex = (currentIndex + 1) % images.length;
+                
+                slideImages[currentIndex].classList.remove('inactive');
+                slideImages[currentIndex].classList.add('active');
+            }, 1500);
+        });
+        
+        card.addEventListener('mouseleave', () => {
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+            // Reset to first image
+            const slideshowEl = card.querySelector('.project-slideshow');
+            if (!slideshowEl) return;
+            const slideImages = slideshowEl.querySelectorAll('img');
+            slideImages.forEach((img, index) => {
+                if (index === 0) {
+                    img.classList.add('active');
+                    img.classList.remove('inactive');
+                } else {
+                    img.classList.remove('active');
+                    img.classList.add('inactive');
+                }
+            });
+            currentIndex = 0;
+        });
+    }
+    
+    return card;
+}
+
+function openProject(path, event) {
+    if (event) event.stopPropagation();
+    window.location.href = `projects/${path}/index.html`;
+}
+
+// Project Info Modal
+function showProjectInfo(project) {
+    const modal = document.getElementById('projectInfoModal');
+    const title = document.getElementById('projectInfoTitle');
+    const content = document.getElementById('projectInfoContent');
+    
+    title.textContent = project.title;
+    content.innerHTML = `
+        <p class="project-info-description">${project.description_long}</p>
+        <div class="project-info-details">
+            <p><strong>Version:</strong> ${project.version}</p>
+            <p><strong>Published:</strong> ${new Date(project.date_published).toLocaleDateString()}</p>
+            <p><strong>Tags:</strong> ${project.tags.join(', ')}</p>
+        </div>
+    `;
+    
+    modal.style.display = 'flex';
+}
+
+function closeProjectInfo() {
+    document.getElementById('projectInfoModal').style.display = 'none';
+}
+
+// GitHub Stats
+function toggleGithubStats() {
+    const panel = document.getElementById('githubStats');
+    const isVisible = panel.style.display !== 'none';
+    panel.style.display = isVisible ? 'none' : 'block';
+    
+    if (!isVisible) {
+        loadGithubStats();
+    }
+}
+
+function loadGithubStats() {
+    // Placeholder for GitHub API integration
+    document.getElementById('githubStats').innerHTML = `
+        <h3>GitHub Stats</h3>
+        <p style="color: var(--text-secondary);">Connect to GitHub API to see repository statistics.</p>
+        <p style="color: var(--text-secondary); font-size: 0.85rem;">Configure API token in settings to enable this feature.</p>
+    `;
+}
+
+// Load Projects - Will be replaced with actual data
+function loadProjects() {
+    // PROJECTS_DATA_PLACEHOLDER
+    filteredProjects = projects;
+    populateFilters();
+    renderProjects();
+}
+
+    </script>
+</body>
+</html>

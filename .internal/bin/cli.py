@@ -6,6 +6,7 @@ Available commands:
   create [name]              - Scaffold a new project folder with required structure
   update [name|all]          - Validate and sync info.json data
   remove [name]              - Safely delete a project folder
+    generate | gen             - Generate the gallery index.html without serving it
   serve                      - Generate gallery and start local http.server
     sync [--force]             - Automate git add, commit, and push
   migrate [name] [new_repo]  - Clone project to another repo with renamed references
@@ -19,6 +20,7 @@ import shutil
 import subprocess
 import uuid
 import tempfile
+import socket
 from urllib.parse import quote, urlsplit, urlunsplit
 from pathlib import Path
 from datetime import datetime
@@ -513,18 +515,42 @@ def remove_project(name):
         print(f"Error: Failed to remove project - {e}")
         return 1
 
-def serve_gallery():
-    """Generate the gallery and start local http.server."""
+def generate_gallery_only():
+    """Generate the gallery without starting a server."""
     print("Generating gallery...")
-    
+
     try:
-        # Generate gallery
         generator.generate_gallery()
         print("✓ Gallery generated successfully")
+        return 0
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
+
+def find_available_port(start_port=8000, max_port=8100):
+    """Return the first available TCP port at or above start_port."""
+    for port in range(start_port, max_port + 1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("", port))
+            except OSError:
+                continue
+
+            return port
+
+    raise RuntimeError(f"No available port found in range {start_port}-{max_port}")
+
+def serve_gallery():
+    """Generate the gallery and start local http.server."""
+    try:
+        result = generate_gallery_only()
+        if result != 0:
+            return result
         
         # Start server
         os.chdir(REPO_ROOT)
-        port = 8000
+        port = find_available_port(8000)
         
         print(f"\nStarting server at http://localhost:{port}")
         print("Press Ctrl+C to stop the server\n")
@@ -701,6 +727,8 @@ def print_help():
     print("\nExamples:")
     print("  cli.py create my-new-project")
     print("  cli.py update all")
+    print("  cli.py generate")
+    print("  cli.py gen")
     print("  cli.py serve")
     print("  cli.py sync")
     print("  cli.py sync --force")
@@ -727,6 +755,9 @@ def main():
         name = sys.argv[2] if len(sys.argv) > 2 else None
         return remove_project(name)
     
+    elif command in ["generate", "gen"]:
+        return generate_gallery_only()
+
     elif command == "serve":
         return serve_gallery()
     

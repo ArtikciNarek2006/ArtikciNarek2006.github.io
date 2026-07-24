@@ -37,6 +37,9 @@ gallery update all                  # Update all projects
 gallery remove old-project
 
 # Generate and serve gallery locally
+# (gallery serve will pick the next free port if 8000 is already in use)
+gallery generate
+gallery gen           # Shorthand for gallery generate
 gallery serve
 
 # Sync changes to git
