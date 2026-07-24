@@ -685,6 +685,10 @@ def sync_git(force=False):
             return 1
 
         if result.returncode == 0:
+            fetch_result = subprocess.run(["git", "fetch", "origin", branch_name], capture_output=True, text=True)
+            if fetch_result.returncode != 0:
+                stderr = (fetch_result.stderr or "").strip()
+                print(f"Warning: push succeeded but failed to refresh origin/{branch_name}: {stderr if stderr else 'unknown error'}")
             print("✓ Changes synced successfully")
             return 0
 
